@@ -15,6 +15,7 @@ Route::middleware(['cors'])->group(function () {
     Route::controller(\App\Http\Controllers\PeticioneController::class)->group(function () {
         Route::get('peticiones', 'index');
         Route::get('mispeticiones', 'listmine');  // Aquí se llama a listmine
+        Route::get('peticiones/firmadas', 'firmadas');
         Route::get('peticiones/{id}', 'show');
         Route::delete('peticiones/{id}', 'delete');
         Route::put('peticiones/firmar/{id}', 'firmar');

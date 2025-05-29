@@ -34,4 +34,5 @@ class Peticione extends Model
     {
         return $this->belongsToMany(User::class, 'peticione_user');
     }
+    
 }

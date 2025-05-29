@@ -21,18 +21,21 @@ class PeticioneController extends Controller
             'descripcion' => 'required',
             'destinatario' => 'required',
             'categoria_id' => 'required|exists:categorias,id',
-            'imagen' => 'nullable|image|max:2048'
+            'imagen*' => 'nullable|image|max:2048'
         ]);
 
         $data = $request->all();
 
 
+        $imagenes = [];
+
         if ($request->hasFile('imagen')) {
-            $path = $request->file('imagen')->store('peticiones', 'public');
-            $data['imagen'] = $path;
-        } else {
-            $data['imagen'] = '';
+            foreach ($request->file('imagen') as $file) {
+                $imagenes[] = $file->store('peticiones', 'public');
+            }
         }
+
+        $data['imagen'] = json_encode($imagenes);
 
         $peticion = new Peticione($data);
         $peticion->user_id = Auth::id();
@@ -91,26 +94,70 @@ class PeticioneController extends Controller
     }
 
     public function firmar($id)
-    {
-        $peticione = Peticione::findOrFail($id);
-        $this->authorize('firmar', $peticione);
-
-        $peticione->firmantes += 1;
-        $peticione->save();
-
-        return response()->json($peticione, 200);
+{
+    $user = Auth::user();
+    if (! $user) {
+        return response()->json(['message' => 'No autenticado'], 401);
     }
 
+    $peticion = Peticione::findOrFail($id);
 
-
-    public function cambiarEstado($id)
-    {
-        $peticione = Peticione::findOrFail($id);
-        $this->authorize('cambiarEstado', $peticione);
-
-        $peticione->estado = 'aceptada';
-        $peticione->save();
-
-        return response()->json($peticione, 200);
+    // Evitar que el creador firme su propia petición
+    if ($peticion->user_id === $user->id) {
+        return response()->json(['message' => 'No puedes firmar tu propia petición'], 403);
     }
+
+    // Verificar si ya ha firmado
+    if ($peticion->firmas()->where('user_id', $user->id)->exists()) {
+        return response()->json(['message' => 'Ya has firmado esta petición'], 400);
+    }
+
+    // Guardar firma en la tabla pivote
+    $peticion->firmas()->attach($user->id);
+
+    // Opcional: actualizar contador
+    $peticion->firmantes = $peticion->firmantes + 1;
+    $peticion->save();
+
+    return response()->json(['message' => 'Petición firmada con éxito']);
+}
+
+
+
+
+    public function cambiarEstado($id, Request $request)
+{
+    $user = Auth::user();
+
+    // ✅ Solo permitir si es administrador (role_id = 1)
+    if (! $user || $user->role_id !== 1) {
+        return response()->json(['message' => 'No autorizado'], 403);
+    }
+
+    $peticion = Peticione::findOrFail($id);
+
+    $request->validate([
+        'estado' => 'required|in:pendiente,aceptada,rechazada'
+    ]);
+
+    $peticion->estado = $request->estado;
+    $peticion->save();
+
+    return response()->json(['message' => 'Estado actualizado correctamente']);
+}
+
+
+    public function firmadas()
+{
+    $user = Auth::user();
+
+    if (! $user) {
+        return response()->json(['message' => 'No autenticado'], 401);
+    }
+
+    // Obtener las peticiones que ha firmado el usuario
+    $peticionesFirmadas = $user->firmas()->with('categoria', 'user')->get();
+
+    return response()->json($peticionesFirmadas);
+}
 }
