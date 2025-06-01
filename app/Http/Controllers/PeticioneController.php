@@ -102,11 +102,6 @@ class PeticioneController extends Controller
 
     $peticion = Peticione::findOrFail($id);
 
-    // Evitar que el creador firme su propia petición
-    if ($peticion->user_id === $user->id) {
-        return response()->json(['message' => 'No puedes firmar tu propia petición'], 403);
-    }
-
     // Verificar si ya ha firmado
     if ($peticion->firmas()->where('user_id', $user->id)->exists()) {
         return response()->json(['message' => 'Ya has firmado esta petición'], 400);
